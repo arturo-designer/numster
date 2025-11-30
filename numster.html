@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<link rel="icon" type="image/png" href="icono.png" sizes="32x32">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Numster</title>
+<style>
+body { font-family: Arial, sans-serif; background: #f0f3f7; margin: 0; padding: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; overflow-x: hidden; overflow-y: auto; }
+.pantalla { text-align: center; width: 90%; max-width: 400px; background: white; padding: 25px; border-radius: 12px; box-shadow: 0px 4px 10px rgba(0,0,0,0.2); box-sizing: border-box; }
+.oculto { display: none; }
+.icono { width: 80px; margin-bottom: 10px; }
+.numero-dia { font-size: 20px; margin-top: 15px; font-weight: bold; }
+.racha-dia { font-size: 16px; color: #555; }
+.descripcion { font-size: 16px; margin-top: 5px; color: #333; }
+input { width: 90%; padding: 12px; margin-top: 15px; border-radius: 5px; border: 1px solid #aaa; font-size: 18px; box-sizing: border-box; }
+button { width: 90%; margin-top: 15px; padding: 14px; border: none; background: #4caf50; color: white; font-size: 18px; cursor: pointer; border-radius: 5px; }
+button:hover { background: #45a049; }
+#mensaje { margin-top: 20px; font-size: 18px; }
+#intentos { margin-top: 5px; font-size: 16px; color: #777; }
+#racha { margin-top: 5px; font-size: 16px; font-weight: bold; }
+.porcentaje { font-size: 20px; font-weight: bold; margin-bottom: 15px; }
+.calendario { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; margin-top: 20px; }
+.dia {
+    padding: 12px; border-radius: 8px; background: #eaeaea; font-size: 18px; text-align: center; font-weight: bold;
+    transition: 0.3s ease;
+} padding: 12px; border-radius: 8px; background: #eaeaea; font-size: 18px; text-align: center; font-weight: bold; }
+.dia.ganado {
+    background: #4caf50;
+    color: white;
+    box-shadow: 0 0 10px #4caf50, 0 0 20px #4caf50;
+    animation: brilloVerde 1.2s ease-in-out infinite alternate;
+}
+.dia.congelado {
+    background: #bde8ff;
+    color: #003d66;
+    animation: parpadeoHielo 1.4s ease-in-out infinite alternate;
+}
+#confeti { position: fixed; top: 0; left: 0; width: 100%; height: 0; pointer-events: none; overflow: visible; }
+.confeti-piece { position: absolute; border-radius: 50%; opacity: 0.9; animation-name: caerMejor; animation-timing-function: linear; animation-fill-mode: forwards; }
+@keyframes brilloVerde {
+    0% { box-shadow: 0 0 6px #4caf50; }
+    100% { box-shadow: 0 0 18px #4caf50; }
+}
+
+@keyframes parpadeoHielo {
+    0% { box-shadow: 0 0 4px #bde8ff; }
+    100% { box-shadow: 0 0 14px #bde8ff; }
+}
+
+@keyframes caerMejor { 0% { transform: translateY(0) rotate(0deg); opacity:1; } 100% { transform: translateY(100vh) translateX(var(--desp)) rotate(360deg); opacity:0; } }
+</style>
+</head>
+<body>
+
+<!-- PANTALLA INICIAL -->
+<div id="pantalla-inicial" class="pantalla">
+    <img src="icono.png" class="icono" style="width:70px; margin-bottom:10px; opacity:0.95;" alt="Icono del juego">
+    <h1>Numster 🔢</h1>
+    <p class="descripcion">Adivina el número</p>
+    <p id="rachaInicio" class="racha-dia" style="margin-top:8px;"></p>
+    <p id="numeroProgresivoTexto" class="descripcion"></p>
+    <p id="numeroDelDia" class="numero-dia"></p>
+    <button id="btnEmpezar">Empezar a jugar</button>
+</div>
+
+<!-- PANTALLA DEL JUEGO -->
+<div id="pantalla-juego" class="pantalla oculto">
+    <h2>Desafío del día</h2>
+    <input type="number" id="entrada" placeholder="Tu número..." min="1" max="100">
+    <button id="btnComprobar">Comprobar</button>
+    <p id="mensaje"></p>
+    <p id="tiempo" style="font-size:16px; color:#444; margin-top:5px;"></p>
+    <p id="intentos"></p>
+    <p id="racha"></p>
+</div>
+
+<!-- PANTALLA DE RESULTADO -->
+<div id="pantalla-resultado" class="pantalla oculto">
+    <h2>¡Número Adivinado! 🎉</h2>
+    <p id="textoIntentos"></p>
+    <button id="btnSiguiente">Siguiente</button>
+    <div id="confeti"></div>
+</div>
+
+<!-- PANTALLA SEMANAL -->
+<div id="pantalla-semanal" class="pantalla oculto">
+    <h2>Resumen Semanal 📅</h2>
+    <p id="porcentajeGanado" class="porcentaje"></p>
+    <div class="calendario">
+        <div class="dia" id="sem-lun">L</div>
+        <div class="dia" id="sem-mar">M</div>
+        <div class="dia" id="sem-mie">X</div>
+        <div class="dia" id="sem-jue">J</div>
+        <div class="dia" id="sem-vie">V</div>
+        <div class="dia" id="sem-sab">S</div>
+        <div class="dia" id="sem-dom">D</div>
+    </div>
+</div>
+
+<script>
+// --------------------
+// UTILIDADES
+// --------------------
+function generarNumeroDiario() {
+    const hoy = new Date();
+    const seed = hoy.getFullYear()*10000 + (hoy.getMonth()+1)*100 + hoy.getDate();
+    let num = (seed*9301 + 49297) % 233280;
+    return (num%100)+1;
+}
+
+// --------------------
+// ESTADO GLOBAL
+// --------------------
+let numeroProgresivo = 1;
+let racha = Number(localStorage.getItem('racha')) || 0;
+let semana = JSON.parse(localStorage.getItem('semana')) || {1:null,2:null,3:null,4:null,5:null,6:null,7:null};
+let intentos = 0;
+const hoyString = new Date().toDateString();
+const diaSemana = new Date().getDay();
+const diaMapeado = diaSemana === 0 ? 7 : diaSemana;
+let ultimoDiaJugado = localStorage.getItem('ultimoDiaJugado') || null;
+let juegoFinalizado = (ultimoDiaJugado === hoyString);
+let numeroSecreto = generarNumeroDiario();
+
+// --------------------
+// INICIO
+// --------------------
+window.onload = () => {
+    // RESET TOTAL SOLICITADO (Opción A)
+    localStorage.setItem('racha', 0);
+    localStorage.setItem('numeroProgresivo', 1);
+    localStorage.setItem('semana', JSON.stringify({1:null,2:null,3:null,4:null,5:null,6:null,7:null}));
+
+    let startTime = 0;
+let timerInterval = null;
+
+    // mostrar valores iniciales
+    document.getElementById('numeroDelDia').textContent = 'Número del día: #' + numeroProgresivo;
+    document.getElementById('numeroProgresivoTexto').textContent = 'N.º ' + numeroProgresivo;
+    document.getElementById('rachaInicio').textContent = `🔥 Racha actual: ${racha} día${racha===1?'':'s'}`;
+    document.getElementById('racha').textContent = `🔥 Racha: ${racha} día${racha===1?'':'s'}`;
+
+    // botón empezar
+    document.getElementById('btnEmpezar').onclick = () => {
+        // si no has jugado hoy, incrementa progresivo (para pruebas, incrementa siempre al entrar si no jugado hoy)
+        if (ultimoDiaJugado !== hoyString) {
+            numeroProgresivo++;
+            localStorage.setItem('numeroProgresivo', 1);
+            document.getElementById('numeroProgresivoTexto').textContent = 'N.º ' + numeroProgresivo;
+            document.getElementById('numeroDelDia').textContent = 'Número del día: #' + numeroProgresivo;
+        }
+
+        // iniciar cronómetro
+            startTime = Date.now();
+            timerInterval = setInterval(() => {
+                const diff = Math.floor((Date.now() - startTime) / 1000);
+                let m = Math.floor(diff / 60);
+                let s = diff % 60;
+                if(s < 10) s = '0' + s;
+                document.getElementById('tiempo').textContent = m + ':' + s;
+            }, 1000);
+
+        // mostrar pantalla de juego
+        document.getElementById('pantalla-inicial').classList.add('oculto');
+        document.getElementById('pantalla-juego').classList.remove('oculto');
+
+        // si ya se completó hoy, bloquear entrada
+        if (juegoFinalizado) {
+            document.getElementById('mensaje').textContent = '✅ Ya has completado el desafío de hoy. ¡Vuelve mañana!';
+            document.getElementById('entrada').disabled = true;
+            document.getElementById('btnComprobar').disabled = true;
+        } else {
+            // reset intentos para esta sesión
+            intentos = 0;
+            document.getElementById('mensaje').textContent = '';
+            document.getElementById('intentos').textContent = '';
+            document.getElementById('entrada').disabled = false;
+            document.getElementById('btnComprobar').disabled = false;
+            // generar nuevo número secreto para esta sesión (opcional)
+            numeroSecreto = generarNumeroDiario();
+        }
+    };
+
+    document.getElementById('btnComprobar').onclick = comprobar;
+    document.getElementById('btnSiguiente').onclick = () => {
+        document.getElementById('pantalla-resultado').classList.add('oculto');
+        document.getElementById('pantalla-semanal').classList.remove('oculto');
+        actualizarCalendario();
+    };
+};
+
+// --------------------
+// JUEGO: comprobar
+// --------------------
+function comprobar() {
+    if (juegoFinalizado) {
+        document.getElementById('mensaje').textContent = '✅ Ya has completado el desafío de hoy. ¡Vuelve mañana!';
+        return;
+    }
+
+    const entradaEl = document.getElementById('entrada');
+    const mensajeEl = document.getElementById('mensaje');
+    const contadorIntentosEl = document.getElementById('intentos');
+    const valor = Number(entradaEl.value);
+
+    // validar entrada
+    if (!valor || valor < 1 || valor > 100) {
+        mensajeEl.textContent = '⛔ Ingresa un número válido entre 1 y 100.';
+        return;
+    }
+
+    intentos++;
+
+    if (valor < numeroSecreto) {
+        mensajeEl.textContent = '📉 Es más alto.';
+    } else if (valor > numeroSecreto) {
+        mensajeEl.textContent = '📈 Es más bajo.';
+    } else {
+        // acertó
+        racha++;
+        localStorage.setItem('racha', racha);
+        localStorage.setItem('ultimoDiaJugado', hoyString);
+        ultimoDiaJugado = hoyString;
+        juegoFinalizado = true;
+
+        semana[diaMapeado] = 'ganado';
+        localStorage.setItem('semana', JSON.stringify(semana));
+
+        clearInterval(timerInterval);
+        document.getElementById('pantalla-juego').classList.add('oculto');
+        document.getElementById('textoIntentos').textContent = `Has necesitado ${intentos} intento(s).`;
+        document.getElementById('pantalla-resultado').classList.remove('oculto');
+
+        document.getElementById('rachaInicio').textContent = `🔥 Racha actual: ${racha} día${racha===1?'':'s'}`;
+        document.getElementById('racha').textContent = `🔥 Racha: ${racha} día${racha===1?'':'s'}`;
+
+        lanzarConfeti();
+        return;
+    }
+
+    contadorIntentosEl.textContent = 'Intentos: ' + intentos;
+    document.getElementById('racha').textContent = `🔥 Racha: ${racha} día${racha===1?'':'s'}`;
+}
+
+// --------------------
+// CONFETI
+// --------------------
+function lanzarConfeti(){
+    const contenedor = document.getElementById('confeti');
+    const numParticulas = window.innerWidth < 500 ? 60 : 120;
+    for (let i=0;i<numParticulas;i++){
+        const pieza = document.createElement('div');
+        pieza.classList.add('confeti-piece');
+        const size = 6 + Math.random()*10;
+        pieza.style.width = size+'px';
+        pieza.style.height = size+'px';
+        pieza.style.left = Math.random()*window.innerWidth+'px';
+        pieza.style.backgroundColor = `hsl(${Math.random()*360},70%,50%)`;
+        pieza.style.setProperty('--desp', (Math.random()*200-100)+'px');
+        pieza.style.animationDuration = 2 + Math.random()*3 + 's';
+        pieza.style.animationDelay = Math.random()*0.5+'s';
+        contenedor.appendChild(pieza);
+        setTimeout(()=>contenedor.removeChild(pieza),4000);
+    }
+}
+
+// --------------------
+// CALENDARIO SEMANAL
+// --------------------
+function actualizarCalendario() {
+    let diasJugados = 0;
+    const ids = ['sem-lun','sem-mar','sem-mie','sem-jue','sem-vie','sem-sab','sem-dom'];
+    for (let i=1;i<=7;i++){
+        const celda = document.getElementById(ids[i-1]);
+        celda.classList.remove('ganado','congelado');
+        if (semana[i] === 'ganado'){
+            celda.classList.add('ganado');
+            diasJugados++;
+        } else if(i < diaMapeado && semana[i] === null){
+            celda.classList.add('congelado');
+        }
+    }
+
+    const porcentaje = Math.round((diasJugados/7)*100);
+    document.getElementById('porcentajeGanado').textContent = `Has completado un ${porcentaje}% de esta semana.`;
+
+    let fallosSeguidos = 0;
+    for(let i=1;i<diaMapeado;i++){
+        if(semana[i] === null) fallosSeguidos++;
+        else fallosSeguidos = 0;
+    }
+    if(fallosSeguidos >= 2){
+        racha = 0;
+        localStorage.setItem('racha', 0);
+    }
+}
+</script>
+
+</body>
+</html>
